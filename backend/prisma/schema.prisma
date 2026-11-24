@@ -1,0 +1,202 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  STAFF
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+model Tenant {
+  id              String            @id @default(uuid())
+  name            String
+  slug            String            @unique
+  plan            String            @default("ENTERPRISE")
+  status          String            @default("ACTIVE")
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  users           User[]
+  products        Product[]
+  customers       Customer[]
+  orders          Order[]
+  inventory       Inventory[]
+  order_items     OrderItem[]
+  outbox_events   OutboxEvent[]
+  processed_events ProcessedEvent[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  tenant_id     String
+  email         String
+  password_hash String
+  first_name    String
+  last_name     String
+  role          Role      @default(STAFF)
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, email], name: "idx_user_tenant_email")
+  @@index([tenant_id])
+  @@map("users")
+}
+
+model Customer {
+  id            String    @id @default(uuid())
+  tenant_id     String
+  name          String
+  email         String
+  phone         String?
+  address       String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@index([tenant_id])
+  @@map("customers")
+}
+
+model Product {
+  id            String        @id @default(uuid())
+  tenant_id     String
+  sku           String
+  name          String
+  description   String?
+  price         Decimal       @db.Decimal(10, 2)
+  category      String        @default("General")
+  status        String        @default("ACTIVE")
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  inventory     Inventory?
+  order_items   OrderItem[]
+
+  @@unique([tenant_id, sku], name: "idx_product_tenant_sku")
+  @@index([tenant_id])
+  @@map("products")
+}
+
+model Inventory {
+  id                String    @id @default(uuid())
+  tenant_id         String
+  product_id        String    @unique
+  quantity          Int       @default(0)
+  reserved_quantity Int       @default(0)
+  location          String    @default("Warehouse-A")
+  updated_at        DateTime  @updatedAt
+
+  tenant            Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product           Product   @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, product_id], name: "idx_inventory_tenant_product")
+  @@index([tenant_id])
+  @@map("inventory")
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  tenant_id       String
+  customer_id     String
+  order_number    String
+  status          OrderStatus   @default(PENDING)
+  total_amount    Decimal       @db.Decimal(10, 2)
+  notes           String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  customer        Customer      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+
+  // Mandatory Composite index for performance optimization
+  @@index([tenant_id, created_at(sort: Desc)], name: "idx_orders_tenant_created")
+  @@unique([tenant_id, order_number], name: "idx_order_tenant_number")
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String    @id @default(uuid())
+  tenant_id     String
+  order_id      String
+  product_id    String
+  quantity      Int
+  unit_price    Decimal   @db.Decimal(10, 2)
+  subtotal      Decimal   @db.Decimal(10, 2)
+
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  order         Order     @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product       Product   @relation(fields: [product_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([order_id])
+  @@map("order_items")
+}
+
+model OutboxEvent {
+  id              String        @id @default(uuid())
+  tenant_id       String
+  event_type      String
+  aggregate_type  String
+  aggregate_id    String
+  payload         Json
+  status          OutboxStatus  @default(PENDING)
+  retry_count     Int           @default(0)
+  error_message   String?
+  created_at      DateTime      @default(now())
+  published_at    DateTime?
+
+  tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([status, created_at])
+  @@index([tenant_id])
+  @@map("outbox_events")
+}
+
+model ProcessedEvent {
+  id            String    @id @default(uuid())
+  tenant_id     String
+  event_id      String    @unique
+  topic         String
+  partition     Int
+  offset        BigInt
+  order_id      String?
+  status        String    @default("PROCESSED")
+  payload       Json?
+  processed_at  DateTime  @default(now())
+
+  tenant        Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([topic, partition, offset], name: "idx_processed_topic_partition_offset")
+  @@index([tenant_id])
+  @@map("processed_events")
+}
