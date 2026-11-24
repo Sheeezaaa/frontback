@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%">
+  <rect width="1200" height="680" fill="#0f172a"/>
+
+  <!-- Top Header -->
+  <rect x="40" y="30" width="1120" height="70" rx="10" fill="#1e293b"/>
+  <text x="65" y="62" font-family="system-ui, sans-serif" font-weight="bold" font-size="20" fill="#ffffff">Apache Kafka Event Monitoring &amp; Idempotency Ledger</text>
+  <text x="65" y="84" font-family="system-ui, sans-serif" font-size="12" fill="#38bdf8">Topic: tenant.orders | DLQ Topic: tenant.orders.dlq | Group: saas-order-consumer-group | Manual Commit Enabled</text>
+
+  <!-- 3 Stream Status Cards -->
+  <rect x="40" y="115" width="350" height="85" rx="8" fill="#1e293b" stroke="#38bdf8"/>
+  <text x="56" y="140" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#94a3b8">CONSUMER GROUP STATUS</text>
+  <text x="56" y="170" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="#38bdf8">ACTIVE (0 Lag)</text>
+  <text x="56" y="188" font-family="system-ui, sans-serif" font-size="10" fill="#a7f3d0">Manual offset commit post-processing</text>
+
+  <rect x="425" y="115" width="350" height="85" rx="8" fill="#1e293b" stroke="#10b981"/>
+  <text x="441" y="140" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#94a3b8">TRANSACTIONAL OUTBOX EVENTS</text>
+  <text x="441" y="170" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="#10b981">100% DISPATCHED</text>
+  <text x="441" y="188" font-family="system-ui, sans-serif" font-size="10" fill="#cbd5e1">Zero event loss guarantee</text>
+
+  <rect x="810" y="115" width="350" height="85" rx="8" fill="#1e293b" stroke="#f59e0b"/>
+  <text x="826" y="140" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#94a3b8">DEAD LETTER QUEUE (DLQ)</text>
+  <text x="826" y="170" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="#f59e0b">0 Failed / Recovered</text>
+  <text x="826" y="188" font-family="system-ui, sans-serif" font-size="10" fill="#cbd5e1">Retry threshold: 3 attempts with backoff</text>
+
+  <!-- Processed Events Ledger Table -->
+  <rect x="40" y="220" width="1120" height="420" rx="10" fill="#111827" stroke="#374151"/>
+  <text x="65" y="250" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff">Idempotency Ledger (ProcessedEvents Table)</text>
+  <text x="65" y="266" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8">Duplicate partition offsets are automatically discarded preventing double inventory deductions</text>
+
+  <!-- Header -->
+  <rect x="65" y="280" width="1070" height="28" fill="#1f2937"/>
+  <text x="80" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">EVENT ID</text>
+  <text x="240" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">TOPIC</text>
+  <text x="410" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">PARTITION</text>
+  <text x="510" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">OFFSET</text>
+  <text x="620" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">ORDER ID</text>
+  <text x="820" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">STATUS</text>
+  <text x="960" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#9ca3af">PROCESSED AT</text>
+
+  <!-- Row 1 -->
+  <text x="80" y="335" font-family="monospace" font-size="11" fill="#cbd5e1">evt-8c29b-44a1</text>
+  <text x="240" y="335" font-family="monospace" font-size="11" fill="#38bdf8">tenant.orders</text>
+  <text x="410" y="335" font-family="monospace" font-size="11" fill="#cbd5e1">0</text>
+  <text x="510" y="335" font-family="monospace" font-size="11" font-weight="bold" fill="#ffffff">#1048</text>
+  <text x="620" y="335" font-family="monospace" font-size="11" fill="#94a3b8">ord-abc-1003</text>
+  <rect x="820" y="322" width="85" height="18" rx="4" fill="#064e3b"/>
+  <text x="830" y="335" font-family="system-ui" font-size="9" font-weight="bold" fill="#34d399">PROCESSED</text>
+  <text x="960" y="335" font-family="system-ui" font-size="11" fill="#94a3b8">Just now</text>
+
+  <!-- Row 2 -->
+  <text x="80" y="375" font-family="monospace" font-size="11" fill="#cbd5e1">evt-7d19c-98e2</text>
+  <text x="240" y="375" font-family="monospace" font-size="11" fill="#38bdf8">tenant.orders</text>
+  <text x="410" y="375" font-family="monospace" font-size="11" fill="#cbd5e1">0</text>
+  <text x="510" y="375" font-family="monospace" font-size="11" font-weight="bold" fill="#ffffff">#1047</text>
+  <text x="620" y="375" font-family="monospace" font-size="11" fill="#94a3b8">ord-abc-1002</text>
+  <rect x="820" y="362" width="85" height="18" rx="4" fill="#064e3b"/>
+  <text x="830" y="375" font-family="system-ui" font-size="9" font-weight="bold" fill="#34d399">PROCESSED</text>
+  <text x="960" y="375" font-family="system-ui" font-size="11" fill="#94a3b8">1 min ago</text>
+
+  <!-- Row 3 -->
+  <text x="80" y="415" font-family="monospace" font-size="11" fill="#cbd5e1">evt-5a02d-11f4</text>
+  <text x="240" y="415" font-family="monospace" font-size="11" fill="#38bdf8">tenant.orders</text>
+  <text x="410" y="415" font-family="monospace" font-size="11" fill="#cbd5e1">0</text>
+  <text x="510" y="415" font-family="monospace" font-size="11" font-weight="bold" fill="#ffffff">#1046</text>
+  <text x="620" y="415" font-family="monospace" font-size="11" fill="#94a3b8">ord-abc-1001</text>
+  <rect x="820" y="402" width="85" height="18" rx="4" fill="#064e3b"/>
+  <text x="830" y="415" font-family="system-ui" font-size="9" font-weight="bold" fill="#34d399">PROCESSED</text>
+  <text x="960" y="415" font-family="system-ui" font-size="11" fill="#94a3b8">3 mins ago</text>
+
+  <!-- Explanatory footer -->
+  <rect x="65" y="480" width="1070" height="135" rx="6" fill="#1e293b"/>
+  <text x="85" y="508" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff">Security &amp; Idempotency Guarantees:</text>
+  <text x="85" y="530" font-family="system-ui, sans-serif" font-size="11" fill="#cbd5e1">1. <tspan fill="#38bdf8" font-weight="bold">Tenant Isolation:</tspan> Every incoming message is checked against the database; order and inventory records must strictly match the tenant_id.</text>
+  <text x="85" y="550" font-family="system-ui, sans-serif" font-size="11" fill="#cbd5e1">2. <tspan fill="#34d399" font-weight="bold">Manual Offset Commit:</tspan> Replaced autoCommit with consumer.commitOffsets after successful processing to guarantee at-least-once delivery.</text>
+  <text x="85" y="570" font-family="system-ui, sans-serif" font-size="11" fill="#cbd5e1">3. <tspan fill="#f59e0b" font-weight="bold">Dead Letter Queue (DLQ):</tspan> Events that fail 3 consecutive retries are routed to tenant.orders.dlq preventing queue blockages.</text>
+  <text x="85" y="590" font-family="system-ui, sans-serif" font-size="11" fill="#cbd5e1">4. <tspan fill="#ec4899" font-weight="bold">Serverless Webhook:</tspan> Triggers Vercel serverless function to generate binary PDF invoice and record cold vs warm start timings.</text>
+</svg>

@@ -1,5 +1,6 @@
 export const KAFKA_TOPICS = {
   ORDERS: process.env.KAFKA_TOPIC_ORDERS || 'tenant.orders',
+  ORDERS_DLQ: process.env.KAFKA_TOPIC_ORDERS_DLQ || 'tenant.orders.dlq',
 } as const;
 
 export interface OrderItemPayload {

@@ -1,28 +1,51 @@
 import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
 import { logger } from './logger';
 import { env } from './env';
 
 // Connection pooling configuration:
-// DATABASE_URL includes ?connection_limit=15&pool_timeout=10
-// Prisma transparently manages an internal pg pool based on connection_limit query param.
+// Prisma manages an internal connection pool with connection_limit & pool_timeout.
+// We also create a dedicated pg.Pool for session-bound operations (e.g. EXPLAIN ANALYZE connection switches).
 
 export const prisma = new PrismaClient({
-  log: env.NODE_ENV === 'development' 
-    ? [
-        { emit: 'event', level: 'query' },
-        { emit: 'stdout', level: 'error' },
-        { emit: 'stdout', level: 'warn' },
-      ]
-    : [{ emit: 'stdout', level: 'error' }],
+  log: [
+    { emit: 'event', level: 'query' },
+    { emit: 'stdout', level: 'error' },
+    { emit: 'stdout', level: 'warn' },
+  ],
 });
 
-if (env.NODE_ENV === 'development') {
-  // @ts-ignore
-  prisma.$on('query', (e: any) => {
-    // Enable for debugging SQL queries during development
-    // logger.debug(`SQL Query: ${e.query} - Duration: ${e.duration}ms`);
-  });
+// Real SQL Query Collector for empirical benchmark measurements
+let activeQueryCollector: { count: number; queries: string[] } | null = null;
+
+// @ts-ignore
+prisma.$on('query', (e: any) => {
+  if (activeQueryCollector) {
+    activeQueryCollector.count++;
+    activeQueryCollector.queries.push(e.query);
+  }
+});
+
+export function startQueryCollector() {
+  const collector = { count: 0, queries: [] as string[] };
+  activeQueryCollector = collector;
+  return {
+    getCount: () => collector.count,
+    stop: () => {
+      const finalCount = collector.count;
+      activeQueryCollector = null;
+      return finalCount;
+    },
+  };
 }
+
+// Dedicated pg Pool for connection-pinned session operations
+export const pgPool = new Pool({
+  connectionString: env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
 export async function connectDatabase(): Promise<void> {
   try {
@@ -37,7 +60,8 @@ export async function connectDatabase(): Promise<void> {
 export async function disconnectDatabase(): Promise<void> {
   try {
     await prisma.$disconnect();
-    logger.info('PostgreSQL connection pool disconnected');
+    await pgPool.end();
+    logger.info('PostgreSQL connection pools disconnected');
   } catch (error) {
     logger.error('Error during database disconnection', error);
   }

@@ -317,6 +317,30 @@ export class OrderService {
 
     return this.getOrderById(tenantId, orderId);
   }
+
+  /**
+   * Invoke invoice generator and return actual PDF document & latency telemetry
+   */
+  async generateOrderInvoice(tenantId: string, orderId: string) {
+    const order = await this.getOrderById(tenantId, orderId);
+    const { generateInvoicePdf } = await import('./invoiceGenerator');
+
+    return generateInvoicePdf({
+      tenantId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+      items: order.items,
+      customer: order.customer
+        ? {
+            name: order.customer.name,
+            email: order.customer.email,
+            phone: order.customer.phone || undefined,
+            address: order.customer.address || undefined,
+          }
+        : undefined,
+    });
+  }
 }
 
 export const orderService = new OrderService();

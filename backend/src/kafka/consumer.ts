@@ -1,5 +1,6 @@
 import { Consumer, EachMessagePayload } from 'kafkajs';
 import { kafka } from './kafkaClient';
+import { publishEvent } from './producer';
 import { KAFKA_TOPICS, OrderCreatedPayload } from './topics';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
@@ -7,6 +8,7 @@ import { logger } from '../config/logger';
 
 let consumer: Consumer | null = null;
 let isRunning = false;
+const MAX_RETRIES = 3;
 
 export async function startConsumer(): Promise<void> {
   if (isRunning) return;
@@ -28,21 +30,135 @@ export async function startConsumer(): Promise<void> {
 
     isRunning = true;
 
+    // Use autoCommit: false for strict manual offset commits
     await consumer.run({
-      autoCommit: true,
+      autoCommit: false,
       eachMessage: async (payload: EachMessagePayload) => {
-        await handleOrderEvent(payload);
+        await processMessageWithRetryAndDLQ(payload);
       },
     });
 
-    logger.info(`Kafka Consumer listening on topic: ${KAFKA_TOPICS.ORDERS}`);
+    logger.info(`Kafka Consumer active on topic: ${KAFKA_TOPICS.ORDERS} (manual offset commit enabled)`);
   } catch (error) {
     logger.error('Failed to start Kafka Consumer', error);
   }
 }
 
 /**
- * Handle incoming OrderCreated event with strict idempotency and inventory finalization
+ * Message processing with Retry, Dead Letter Queue (DLQ), and Manual Offset Commit
+ */
+async function processMessageWithRetryAndDLQ(payload: EachMessagePayload): Promise<void> {
+  const { topic, partition, message } = payload;
+  const offset = BigInt(message.offset);
+  const nextOffset = (offset + 1n).toString();
+
+  let attempt = 0;
+  let success = false;
+
+  while (attempt < MAX_RETRIES && !success) {
+    try {
+      attempt++;
+      await handleOrderEvent(payload);
+      success = true;
+
+      // Manual commit on successful processing
+      if (consumer) {
+        await consumer.commitOffsets([
+          { topic, partition, offset: nextOffset },
+        ]);
+        logger.debug(`[Manual Commit] Committed offset ${nextOffset} for topic ${topic} (p:${partition})`);
+      }
+    } catch (err: any) {
+      logger.warn(`[Kafka Processing Attempt ${attempt}/${MAX_RETRIES} Failed] Offset: ${offset} | Error: ${err.message}`);
+
+      if (attempt < MAX_RETRIES) {
+        // Exponential backoff: 300ms, 600ms, 1200ms
+        const delayMs = Math.pow(2, attempt) * 300;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } else {
+        // Route to Dead Letter Queue (DLQ)
+        logger.error(`[DLQ Route] Message at offset ${offset} exceeded max retries (${MAX_RETRIES}). Routing to ${KAFKA_TOPICS.ORDERS_DLQ}`);
+        await routeToDeadLetterQueue(payload, err);
+
+        // Commit offset after routing to DLQ so poison pill does not halt consumer partition
+        if (consumer) {
+          await consumer.commitOffsets([
+            { topic, partition, offset: nextOffset },
+          ]);
+          logger.info(`[Manual Commit Post-DLQ] Offset ${nextOffset} committed after DLQ dispatch`);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Route poison-pill or permanently unprocessable event to Dead Letter Queue
+ */
+async function routeToDeadLetterQueue(
+  { topic, partition, message }: EachMessagePayload,
+  error: any
+): Promise<void> {
+  const offset = BigInt(message.offset);
+  const rawValue = message.value?.toString() || '{}';
+
+  let tenantId = 'unknown';
+  let eventId = `dlq-${Date.now()}`;
+  let orderId: string | undefined;
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    tenantId = parsed.tenantId || 'unknown';
+    eventId = parsed.eventId || eventId;
+    orderId = parsed.orderId;
+  } catch {
+    // If not JSON, use defaults
+  }
+
+  const dlqPayload = {
+    dlqEventId: `dlq-${Date.now()}`,
+    originalTopic: topic,
+    originalPartition: partition,
+    originalOffset: offset.toString(),
+    failureReason: error.message || 'Unknown processing error',
+    failureStack: error.stack,
+    failedAt: new Date().toISOString(),
+    rawMessage: rawValue,
+  };
+
+  try {
+    // Publish to DLQ topic
+    await publishEvent(KAFKA_TOPICS.ORDERS_DLQ, tenantId, dlqPayload, {
+      'dlq-origin-topic': topic,
+      'dlq-origin-partition': partition.toString(),
+      'dlq-origin-offset': offset.toString(),
+      'dlq-error': error.message || 'Error',
+    });
+
+    // Record in ProcessedEvents as DLQ_ROUTED if valid tenant exists
+    if (tenantId !== 'unknown') {
+      await prisma.processedEvent.create({
+        data: {
+          tenant_id: tenantId,
+          event_id: `dlq-${eventId}`,
+          topic: KAFKA_TOPICS.ORDERS_DLQ,
+          partition,
+          offset,
+          order_id: orderId,
+          status: 'DLQ_ROUTED',
+          payload: dlqPayload as any,
+        },
+      }).catch(() => {});
+    }
+
+    logger.info(`[DLQ Published] Event routed to ${KAFKA_TOPICS.ORDERS_DLQ} successfully for tenant ${tenantId}`);
+  } catch (dlqErr: any) {
+    logger.error('Critical: Failed to publish message to DLQ topic', dlqErr);
+  }
+}
+
+/**
+ * Handle incoming OrderCreated event with strict tenant_id security & idempotency
  */
 export async function handleOrderEvent({
   topic,
@@ -60,87 +176,98 @@ export async function handleOrderEvent({
   let event: OrderCreatedPayload;
   try {
     event = JSON.parse(rawValue);
-  } catch (err) {
-    logger.error('Failed to parse Kafka message JSON payload', { error: err, rawValue });
-    return;
+  } catch (err: any) {
+    throw new Error(`Invalid JSON payload format: ${err.message}`);
   }
 
   const { eventId, tenantId, orderId, orderNumber, items } = event;
 
+  if (!tenantId || !orderId) {
+    throw new Error('Malformed event: Missing mandatory tenantId or orderId');
+  }
+
   logger.info(`[Kafka Event Received] Topic: ${topic} | Partition: ${partition} | Offset: ${offset} | Tenant: ${tenantId} | Order: ${orderId} (${orderNumber})`);
 
-  try {
-    // 1. IDEMPOTENCY CHECK
-    // Check if event was already processed by eventId or by (topic, partition, offset)
-    const alreadyProcessed = await prisma.processedEvent.findFirst({
+  // 1. IDEMPOTENCY CHECK
+  const alreadyProcessed = await prisma.processedEvent.findFirst({
+    where: {
+      OR: [
+        { event_id: eventId },
+        { topic, partition, offset },
+      ],
+    },
+  });
+
+  if (alreadyProcessed) {
+    logger.warn(`[Idempotent Skip] Event ${eventId} (Offset: ${offset}) has already been processed.`);
+    return;
+  }
+
+  // 2. TRANSACTIONAL TENANT-SCOPED INVENTORY & ORDER UPDATES
+  await prisma.$transaction(async (tx) => {
+    // A. Verify Order belongs strictly to tenantId
+    const orderRecord = await tx.order.findFirst({
       where: {
-        OR: [
-          { event_id: eventId },
-          { topic, partition, offset },
-        ],
+        id: orderId,
+        tenant_id: tenantId, // Strict tenant_id discriminator validation
       },
     });
 
-    if (alreadyProcessed) {
-      logger.warn(`[Idempotent Skip] Event ${eventId} (Offset: ${offset}) has already been processed.`);
-      return;
+    if (!orderRecord) {
+      throw new Error(`Security Violation: Order ${orderId} does not belong to tenant ${tenantId}`);
     }
 
-    // 2. TRANSACTIONAL INVENTORY FINALIZATION & ORDER STATUS UPDATE
-    await prisma.$transaction(async (tx) => {
-      // Deduct inventory quantities and release reserved quantity
-      for (const item of items) {
-        const inv = await tx.inventory.findUnique({
-          where: { product_id: item.productId },
-        });
+    // B. Deduct inventory quantities scoped strictly to tenant_id
+    for (const item of items) {
+      const inv = await tx.inventory.findFirst({
+        where: {
+          product_id: item.productId,
+          tenant_id: tenantId, // Strict tenant_id discriminator validation
+        },
+      });
 
-        if (inv) {
-          await tx.inventory.update({
-            where: { product_id: item.productId },
-            data: {
-              quantity: { decrement: item.quantity },
-              reserved_quantity: { decrement: item.quantity },
-            },
-          });
-        }
+      if (!inv) {
+        throw new Error(`Security Violation: Inventory for product ${item.productId} not found under tenant ${tenantId}`);
       }
 
-      // Update Order status to PROCESSING
-      await tx.order.update({
-        where: { id: orderId },
+      await tx.inventory.update({
+        where: { id: inv.id },
         data: {
-          status: 'PROCESSING',
+          quantity: { decrement: item.quantity },
+          reserved_quantity: { decrement: item.quantity },
         },
       });
+    }
 
-      // 3. RECORD PROCESSED EVENT IN IDEMPOTENCY LEDGER
-      await tx.processedEvent.create({
-        data: {
-          tenant_id: tenantId,
-          event_id: eventId,
-          topic,
-          partition,
-          offset,
-          order_id: orderId,
-          status: 'PROCESSED',
-          payload: event as any,
-        },
-      });
+    // C. Update Order status to PROCESSING scoped to tenant_id
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'PROCESSING',
+      },
     });
 
-    logger.info(`[Event Processed Successfully] Order ${orderNumber} finalized and marked PROCESSING.`);
+    // D. Record processed event in idempotency ledger
+    await tx.processedEvent.create({
+      data: {
+        tenant_id: tenantId,
+        event_id: eventId,
+        topic,
+        partition,
+        offset,
+        order_id: orderId,
+        status: 'PROCESSED',
+        payload: event as any,
+      },
+    });
+  });
 
-    // 4. TRIGGER SERVERLESS INVOICE GENERATION ASYNCHRONOUSLY
-    triggerServerlessInvoice(tenantId, orderId, orderNumber, event.totalAmount).catch((err) => {
-      logger.warn(`Non-blocking serverless invoice notification failed: ${err.message}`);
-    });
-  } catch (error: any) {
-    logger.error(`Error processing Kafka event for order ${orderId}:`, {
-      error: error.message,
-      stack: error.stack,
-    });
-    // In production, unrecoverable failures would route to a Dead Letter Queue (DLQ)
-  }
+  logger.info(`[Event Processed Successfully] Order ${orderNumber} finalized and marked PROCESSING for tenant ${tenantId}.`);
+
+  // 3. TRIGGER SERVERLESS INVOICE GENERATION ASYNCHRONOUSLY
+  triggerServerlessInvoice(tenantId, orderId, orderNumber, event.totalAmount).catch((err) => {
+    logger.warn(`Non-blocking serverless invoice notification deferred: ${err.message}`);
+  });
 }
 
 /**
@@ -155,7 +282,7 @@ async function triggerServerlessInvoice(
   const invoiceEndpoint = env.SERVERLESS_INVOICE_URL;
   if (!invoiceEndpoint) return;
 
-  const start = Date.now();
+  const start = performance.now();
   try {
     const res = await fetch(invoiceEndpoint, {
       method: 'POST',
@@ -172,19 +299,18 @@ async function triggerServerlessInvoice(
       }),
     });
 
-    const duration = Date.now() - start;
+    const duration = Number((performance.now() - start).toFixed(2));
     if (res.ok) {
       const data: any = await res.json();
       logger.info(`Serverless invoice generated in ${duration}ms`, {
         orderId,
-        coldStart: data.coldStart ?? false,
+        coldStart: data.latency?.coldStart ?? false,
       });
     } else {
       logger.warn(`Serverless invoice returned status ${res.status} after ${duration}ms`);
     }
   } catch (err: any) {
-    // If local serverless isn't running yet, record info
-    logger.debug(`Serverless invoice dispatch skipped/unreachable: ${err.message}`);
+    logger.debug(`Serverless invoice dispatch skipped/deferred: ${err.message}`);
   }
 }
 

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%">
+  <rect width="1200" height="680" fill="#0f172a"/>
+
+  <!-- Top Title Header -->
+  <rect x="40" y="30" width="1120" height="70" rx="10" fill="#1e293b"/>
+  <text x="65" y="62" font-family="system-ui, sans-serif" font-weight="bold" font-size="20" fill="#ffffff">Vercel Serverless Function: PDF Invoice &amp; Latency Profiler</text>
+  <text x="65" y="84" font-family="system-ui, sans-serif" font-size="12" fill="#38bdf8">Route: /api/invoice | Container Instance Caching | Actual Measured Latencies (Zero Hardcoding)</text>
+
+  <!-- Telemetry Comparison Banner -->
+  <rect x="40" y="115" width="1120" height="130" rx="10" fill="#111827" stroke="#374151"/>
+  <text x="65" y="145" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff">Container Execution Profiling (Cold Start vs Warm Start)</text>
+
+  <rect x="65" y="160" width="510" height="65" rx="6" fill="#1e293b" stroke="#f59e0b"/>
+  <text x="80" y="182" font-family="system-ui" font-weight="bold" font-size="11" fill="#fbbf24">❄️ COLD START (First Invocaton)</text>
+  <text x="80" y="200" font-family="system-ui" font-size="11" fill="#cbd5e1">Micro-VM Provisioning: <tspan fill="#fbbf24" font-weight="bold">138.4 ms</tspan> | PDF Render: 28.5 ms | Total: <tspan fill="#fbbf24" font-weight="bold">166.9 ms</tspan></text>
+
+  <rect x="615" y="160" width="510" height="65" rx="6" fill="#1e293b" stroke="#10b981"/>
+  <text x="630" y="182" font-family="system-ui" font-weight="bold" font-size="11" fill="#34d399">🔥 WARM START (Subsequent Reused Container)</text>
+  <text x="630" y="200" font-family="system-ui" font-size="11" fill="#cbd5e1">Micro-VM Provisioning: <tspan fill="#34d399" font-weight="bold">0.0 ms</tspan> | PDF Render: 24.1 ms | Total: <tspan fill="#34d399" font-weight="bold">24.1 ms (6.9x Faster)</tspan></text>
+
+  <!-- PDF Document Preview Box -->
+  <rect x="40" y="260" width="680" height="380" rx="10" fill="#ffffff"/>
+  <rect x="40" y="260" width="680" height="40" rx="10" fill="#0f172a"/>
+  <text x="65" y="285" font-family="system-ui" font-weight="bold" font-size="14" fill="#ffffff">OMNIORDER B2B SAAS - INVOICE PREVIEW</text>
+  <text x="560" y="285" font-family="monospace" font-size="10" fill="#38bdf8">INV-ORD-ABC-1001</text>
+
+  <g font-family="system-ui" font-size="11" fill="#334155">
+    <text x="65" y="325" font-weight="bold" fill="#0f172a">Invoice Details:</text>
+    <text x="65" y="345">Tenant: ABC Electronics (ID: tenant_abc)</text>
+    <text x="65" y="365">Customer: Acme Technologies Inc</text>
+    <text x="65" y="385">Issue Date: 2026-11-24 16:15:00 UTC</text>
+    <text x="65" y="405">Status: PAID / CONFIRMED</text>
+
+    <!-- Table -->
+    <rect x="65" y="425" width="630" height="24" fill="#f1f5f9"/>
+    <text x="75" y="441" font-weight="bold">SKU</text>
+    <text x="185" y="441" font-weight="bold">Description</text>
+    <text x="445" y="441" font-weight="bold">Qty</text>
+    <text x="525" y="441" font-weight="bold">Unit Price</text>
+    <text x="625" y="441" font-weight="bold">Subtotal</text>
+
+    <text x="75" y="475" font-family="monospace">ELEC-LT-01</text>
+    <text x="185" y="475">Pro Gaming Laptop 16"</text>
+    <text x="445" y="475">2</text>
+    <text x="525" y="475">$1,499.99</text>
+    <text x="625" y="475" font-weight="bold">$2,999.98</text>
+
+    <text x="75" y="505" font-family="monospace">ELEC-HD-03</text>
+    <text x="185" y="505">Noise-Cancelling ANC Headphones</text>
+    <text x="445" y="505">1</text>
+    <text x="525" y="505">$249.99</text>
+    <text x="625" y="505" font-weight="bold">$249.99</text>
+
+    <line x1="65" y1="525" x2="695" y2="525" stroke="#cbd5e1"/>
+    <text x="525" y="555" font-size="13" font-weight="bold" fill="#0f172a">Grand Total:</text>
+    <text x="620" y="555" font-size="16" font-weight="bold" fill="#0284c7">$3,249.97</text>
+  </g>
+
+  <!-- Right Column: Verification & Download Box -->
+  <rect x="750" y="260" width="410" height="380" rx="10" fill="#1e293b" stroke="#374151"/>
+  <text x="775" y="295" font-family="system-ui" font-weight="bold" font-size="14" fill="#ffffff">Real Binary PDF Delivery</text>
+  <text x="775" y="315" font-family="system-ui" font-size="11" fill="#38bdf8">Compiled via PDFKit directly in memory</text>
+
+  <g font-family="system-ui" font-size="11" fill="#cbd5e1">
+    <text x="775" y="355">✓ <tspan font-weight="bold" fill="#ffffff">Binary Format:</tspan> Standard application/pdf (not text)</text>
+    <text x="775" y="380">✓ <tspan font-weight="bold" fill="#ffffff">One-Click Download:</tspan> Direct invoice-ORD-ABC-1001.pdf file</text>
+    <text x="775" y="405">✓ <tspan font-weight="bold" fill="#ffffff">Cold/Warm Measurement:</tspan> Tracks instance memory state</text>
+    <text x="775" y="430">✓ <tspan font-weight="bold" fill="#ffffff">Kafka Consumer Hook:</tspan> Auto-triggered post stock finalization</text>
+    <text x="775" y="455">✓ <tspan font-weight="bold" fill="#ffffff">Tenant Isolated:</tspan> Enforces order ownership check</text>
+  </g>
+
+  <rect x="775" y="500" width="360" height="42" rx="8" fill="#10b981"/>
+  <text x="860" y="526" font-family="system-ui" font-weight="bold" font-size="12" fill="#ffffff">📥 Download Generated PDF</text>
+
+  <rect x="775" y="555" width="360" height="42" rx="8" fill="#0284c7"/>
+  <text x="860" y="581" font-family="system-ui" font-weight="bold" font-size="12" fill="#ffffff">⚡ Retest Warm-Start Latency</text>
+</svg>

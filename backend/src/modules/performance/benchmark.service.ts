@@ -1,4 +1,5 @@
-import { prisma } from '../../config/database';
+import { prisma, pgPool, startQueryCollector } from '../../config/database';
+import { AppError } from '../../middleware/error.middleware';
 
 export interface BenchmarkResult {
   unoptimized: {
@@ -22,51 +23,59 @@ export interface BenchmarkResult {
 
 export class BenchmarkService {
   /**
-   * Compare unoptimized N+1 queries vs optimized eager loaded/JOIN queries
+   * Compare unoptimized N+1 queries vs optimized eager loaded queries
+   * Measures the ACTUAL SQL query count executed in PostgreSQL via Prisma's query telemetry
    */
   async runNPlusOneBenchmark(tenantId: string, sampleSize = 30): Promise<BenchmarkResult> {
-    // 1. UNOPTIMIZED N+1 EXECUTION
+    // 1. UNOPTIMIZED N+1 RUN WITH REAL QUERY COUNTING
+    const unoptimizedCollector = startQueryCollector();
     const unoptimizedStart = performance.now();
-    let unoptimizedQueryCount = 1;
 
-    // Step 1: Fetch Orders alone (1 query)
+    // Step A: Fetch Orders alone (1 query)
     const rawOrders = await prisma.order.findMany({
       where: { tenant_id: tenantId },
       take: sampleSize,
       orderBy: { created_at: 'desc' },
     });
 
-    // Step 2: Loop through every order and issue an individual query for its items (N queries)
+    // Step B: Loop through every order and issue individual SELECT for items (N queries)
     const unoptimizedOrdersWithItems = [];
     for (const order of rawOrders) {
       const items = await prisma.orderItem.findMany({
-        where: { order_id: order.id },
+        where: { order_id: order.id, tenant_id: tenantId },
       });
-      unoptimizedQueryCount++;
       unoptimizedOrdersWithItems.push({ ...order, items });
     }
-    const unoptimizedDuration = Number((performance.now() - unoptimizedStart).toFixed(2));
 
-    // 2. OPTIMIZED EAGER LOADING / JOIN EXECUTION
+    const unoptimizedDuration = Number((performance.now() - unoptimizedStart).toFixed(2));
+    // Collect the ACTUAL number of SQL queries fired
+    const unoptimizedQueryCount = unoptimizedCollector.stop();
+
+    // 2. OPTIMIZED EAGER LOADING / JOIN RUN WITH REAL QUERY COUNTING
+    const optimizedCollector = startQueryCollector();
     const optimizedStart = performance.now();
-    // Step 1: Fetch orders and items in single batch join / eager loading
+
+    // Step A: Fetch orders and items in batch eager loading
     const optimizedOrders = await prisma.order.findMany({
       where: { tenant_id: tenantId },
       include: { items: true },
       take: sampleSize,
       orderBy: { created_at: 'desc' },
     });
-    const optimizedQueryCount = 1; // Prisma batches relation fetching in single roundtrip
-    const optimizedDuration = Number((performance.now() - optimizedStart).toFixed(2));
 
-    // 3. COMPARISON METRICS
+    const optimizedDuration = Number((performance.now() - optimizedStart).toFixed(2));
+    // Collect the ACTUAL number of SQL queries fired by the optimized pattern
+    const optimizedQueryCount = optimizedCollector.stop();
+
+    // 3. REAL PERFORMANCE METRICS
     const savedMs = Number((unoptimizedDuration - optimizedDuration).toFixed(2));
-    const speedupMultiplier = optimizedDuration > 0 
-      ? Number((unoptimizedDuration / optimizedDuration).toFixed(2)) 
+    const speedupMultiplier = optimizedDuration > 0
+      ? Number((unoptimizedDuration / optimizedDuration).toFixed(2))
       : 1;
-    const queryReductionPct = Number(
-      (((unoptimizedQueryCount - optimizedQueryCount) / unoptimizedQueryCount) * 100).toFixed(1)
-    );
+
+    const queryReductionPct = unoptimizedQueryCount > 0
+      ? Number((((unoptimizedQueryCount - optimizedQueryCount) / unoptimizedQueryCount) * 100).toFixed(1))
+      : 0;
 
     return {
       unoptimized: {
@@ -76,7 +85,7 @@ export class BenchmarkService {
         recordCount: unoptimizedOrdersWithItems.length,
       },
       optimized: {
-        strategy: 'Single Batch Eager Loading / SQL JOIN',
+        strategy: 'Batched Relation Eager Loading / SQL JOIN',
         queryCount: optimizedQueryCount,
         durationMs: optimizedDuration,
         recordCount: optimizedOrders.length,
@@ -91,54 +100,54 @@ export class BenchmarkService {
 
   /**
    * Run real PostgreSQL EXPLAIN ANALYZE comparison on composite index idx_orders_tenant_created
+   * Uses the EXACT SAME database connection for session parameters (SET enable_indexscan)
+   * Uses parameterized queries ($1) for tenant ID to prevent SQL injection
    */
   async runExplainAnalyze(tenantId: string) {
+    // Acquire dedicated connection from pg pool to guarantee session-bound SET commands
+    const client = await pgPool.connect();
+
     try {
-      // 1. Plan with Index Enabled
-      const indexedPlanResult: any = await prisma.$queryRawUnsafe(`
+      const explainQuery = `
         EXPLAIN (ANALYZE, BUFFERS, COSTS)
         SELECT * FROM orders
-        WHERE tenant_id = '${tenantId}'
+        WHERE tenant_id = $1
         ORDER BY created_at DESC
         LIMIT 50;
-      `);
+      `;
 
-      // 2. Plan with Index Disabled (Simulating unindexed table scan via connection session flag)
-      await prisma.$executeRawUnsafe(`SET enable_indexscan = OFF;`);
-      await prisma.$executeRawUnsafe(`SET enable_bitmapscan = OFF;`);
+      // 1. Plan with Index Enabled (Default) using Parameterized SQL ($1)
+      const indexedResult = await client.query(explainQuery, [tenantId]);
+      const indexedPlanText = indexedResult.rows.map((r: any) => r['QUERY PLAN']).join('\n');
 
-      const scanPlanResult: any = await prisma.$queryRawUnsafe(`
-        EXPLAIN (ANALYZE, BUFFERS, COSTS)
-        SELECT * FROM orders
-        WHERE tenant_id = '${tenantId}'
-        ORDER BY created_at DESC
-        LIMIT 50;
-      `);
+      // 2. On the EXACT SAME connection, disable index scanning to inspect sequential table scan
+      await client.query('SET enable_indexscan = OFF;');
+      await client.query('SET enable_bitmapscan = OFF;');
 
-      // Reset optimizer switches back to default
-      await prisma.$executeRawUnsafe(`SET enable_indexscan = ON;`);
-      await prisma.$executeRawUnsafe(`SET enable_bitmapscan = ON;`);
+      const unindexedResult = await client.query(explainQuery, [tenantId]);
+      const unindexedPlanText = unindexedResult.rows.map((r: any) => r['QUERY PLAN']).join('\n');
 
-      const indexedPlanText = indexedPlanResult.map((r: any) => r['QUERY PLAN']).join('\n');
-      const scanPlanText = scanPlanResult.map((r: any) => r['QUERY PLAN']).join('\n');
+      // 3. Reset optimizer flags on the same connection before releasing back to pool
+      await client.query('SET enable_indexscan = ON;');
+      await client.query('SET enable_bitmapscan = ON;');
 
       return {
         indexName: 'idx_orders_tenant_created',
         targetColumns: '(tenant_id, created_at DESC)',
         indexedExecutionPlan: indexedPlanText,
-        unindexedExecutionPlan: scanPlanText,
+        unindexedExecutionPlan: unindexedPlanText,
         status: 'SUCCESS',
       };
     } catch (error: any) {
-      // Fallback telemetry if running against an engine without explain analyze permissions
-      return {
-        indexName: 'idx_orders_tenant_created',
-        targetColumns: '(tenant_id, created_at DESC)',
-        indexedExecutionPlan: `Index Scan using idx_orders_tenant_created on orders (cost=0.15..8.25 rows=10 width=128) (actual time=0.045..0.082 rows=10 loops=1)\nPlanning Time: 0.120 ms\nExecution Time: 0.105 ms`,
-        unindexedExecutionPlan: `Seq Scan on orders (cost=0.00..38.50 rows=10 width=128) (actual time=0.850..2.450 rows=10 loops=1)\nFilter: (tenant_id = '${tenantId}')\nPlanning Time: 0.190 ms\nExecution Time: 2.650 ms`,
-        status: 'FALLBACK_EMULATED',
-        note: error.message,
-      };
+      // Always ensure flags are reset even on query error
+      try {
+        await client.query('SET enable_indexscan = ON; SET enable_bitmapscan = ON;');
+      } catch {}
+
+      throw new AppError(`PostgreSQL EXPLAIN ANALYZE execution failed: ${error.message}`, 500);
+    } finally {
+      // Release connection back to pool
+      client.release();
     }
   }
 
@@ -154,7 +163,7 @@ export class BenchmarkService {
     });
 
     if (!customer || !product) {
-      throw new Error('Customer or Product missing for this tenant. Run seed first.');
+      throw new AppError('Customer or Product missing for this tenant. Run seed first.', 400);
     }
 
     const created = [];

@@ -12,5 +12,6 @@ router.get('/', (req, res, next) => orderController.list(req, res, next));
 router.get('/:id', (req, res, next) => orderController.getById(req, res, next));
 router.post('/', (req, res, next) => orderController.create(req, res, next));
 router.patch('/:id/status', (req, res, next) => orderController.updateStatus(req, res, next));
+router.post('/:id/invoice', (req, res, next) => orderController.generateInvoice(req, res, next));
 
 export default router;

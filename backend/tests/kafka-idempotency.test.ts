@@ -170,4 +170,43 @@ describe('4. Kafka Event Processing & Idempotency Ledger Suite', () => {
     const checkInv = await prisma.inventory.findUnique({ where: { product_id: product.id } });
     expect(checkInv?.quantity).toBe(18);
   });
+
+  it('Consumer rejects event when tenant_id does not own the target order', async () => {
+    const maliciousPayload = {
+      eventId: uuidv4(),
+      eventType: 'OrderCreated',
+      timestamp: new Date().toISOString(),
+      tenantId: 'forged-tenant-id-999',
+      orderId: order.id,
+      orderNumber: order.order_number,
+      customerId: customer.id,
+      totalAmount: 100.00,
+      items: [
+        {
+          productId: product.id,
+          sku: product.sku,
+          name: product.name,
+          quantity: 1,
+          unitPrice: 50.00,
+          subtotal: 50.00,
+        },
+      ],
+    };
+
+    await expect(
+      handleOrderEvent({
+        topic: testTopic,
+        partition: testPartition,
+        message: {
+          key: Buffer.from('forged-tenant-id-999'),
+          value: Buffer.from(JSON.stringify(maliciousPayload)),
+          offset: '9999',
+          timestamp: `${Date.now()}`,
+          attributes: 0,
+        },
+        heartbeat: async () => {},
+        pause: () => () => {},
+      })
+    ).rejects.toThrow(/Security Violation: Order/);
+  });
 });

@@ -11,6 +11,8 @@ import {
   Building2,
   Calendar,
   Zap,
+  Download,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -25,9 +27,10 @@ export const OrderDetails: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Serverless invoice state
+  // Real Serverless invoice state
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceResult, setInvoiceResult] = useState<any | null>(null);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   const fetchOrder = async () => {
     setIsLoading(true);
@@ -58,44 +61,47 @@ export const OrderDetails: React.FC = () => {
     if (!order) return;
     setInvoiceLoading(true);
     setInvoiceResult(null);
+    setInvoiceError(null);
 
-    const startTime = performance.now();
+    const clientStart = performance.now();
     try {
-      // Direct call to Serverless function endpoint or simulated invocation
-      const res = await fetch('/api/invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: user?.tenantId,
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          totalAmount: order.totalAmount,
-          items: order.items,
-        }),
-      });
+      // Call real backend endpoint connected to the actual Serverless PDF generator
+      const res: any = await api.post(`/orders/${id}/invoice`);
+      const clientRoundtripMs = Number((performance.now() - clientStart).toFixed(2));
 
-      const clientLatency = Number((performance.now() - startTime).toFixed(2));
-      const json = await res.json();
       setInvoiceResult({
-        ...json,
-        clientRoundtripMs: clientLatency,
+        ...res,
+        clientRoundtripMs,
       });
     } catch (err: any) {
-      const clientLatency = Number((performance.now() - startTime).toFixed(2));
-      setInvoiceResult({
-        success: true,
-        invoiceNumber: `INV-${order.orderNumber}`,
-        latency: {
-          executionType: 'WARM_START',
-          coldStart: false,
-          totalDurationMs: 38.4,
-          invokedAt: new Date().toISOString(),
-        },
-        clientRoundtripMs: clientLatency,
-        note: 'Locally measured execution via fallback dispatcher',
-      });
+      setInvoiceError(err.message || 'Serverless invoice generation failed');
     } finally {
       setInvoiceLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!invoiceResult?.pdfDocument?.contentBase64) return;
+
+    try {
+      const byteCharacters = atob(invoiceResult.pdfDocument.contentBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = invoiceResult.pdfDocument.filename || `invoice-${order.orderNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to trigger PDF download', err);
     }
   };
 
@@ -138,24 +144,32 @@ export const OrderDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Serverless Invoice Button */}
+        {/* Real Serverless Invoice Button */}
         <button
           onClick={handleGenerateInvoice}
           disabled={invoiceLoading}
           className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
         >
           <FileText className="w-4 h-4 text-sky-400" />
-          <span>{invoiceLoading ? 'Invoking Serverless...' : 'Generate Serverless Invoice'}</span>
+          <span>{invoiceLoading ? 'Invoking Serverless...' : 'Generate Real PDF Invoice'}</span>
         </button>
       </div>
 
-      {/* Serverless Telemetry Result Panel */}
+      {/* Invoice Error Alert */}
+      {invoiceError && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{invoiceError}</span>
+        </div>
+      )}
+
+      {/* Real Serverless Telemetry Result Panel */}
       {invoiceResult && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 text-white border border-sky-800/60 shadow-lg space-y-3 animate-fade-in">
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 text-white border border-sky-800/60 shadow-lg space-y-4 animate-fade-in">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-amber-400" />
-              <h3 className="font-semibold text-sm">Serverless Invoice Execution Profiling</h3>
+              <h3 className="font-semibold text-sm">Actual Serverless Cold/Warm Start Latency Measurements</h3>
             </div>
             <span
               className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
@@ -164,35 +178,48 @@ export const OrderDetails: React.FC = () => {
                   : 'bg-emerald-900/60 text-emerald-300 border-emerald-600'
               }`}
             >
-              {invoiceResult.latency?.executionType || 'WARM_START'}
+              {invoiceResult.latency?.executionType}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
-              <div className="text-slate-400 text-[10px]">Cold Start?</div>
+              <div className="text-slate-400 text-[10px]">Cold Start Flag</div>
               <div className="font-semibold text-white mt-0.5">
-                {invoiceResult.latency?.coldStart ? 'Yes (Cold Instance)' : 'No (Warm Instance)'}
+                {invoiceResult.latency?.coldStart ? 'TRUE (Cold Start)' : 'FALSE (Warm Start)'}
               </div>
             </div>
             <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
-              <div className="text-slate-400 text-[10px]">Server Duration</div>
+              <div className="text-slate-400 text-[10px]">Init Overhead</div>
+              <div className="font-semibold text-amber-400 mt-0.5">
+                {invoiceResult.latency?.initOverheadMs} ms
+              </div>
+            </div>
+            <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
+              <div className="text-slate-400 text-[10px]">PDF Render Duration</div>
               <div className="font-semibold text-emerald-400 mt-0.5">
+                {invoiceResult.latency?.renderTimeMs} ms
+              </div>
+            </div>
+            <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
+              <div className="text-slate-400 text-[10px]">Total Server Time</div>
+              <div className="font-semibold text-sky-400 mt-0.5">
                 {invoiceResult.latency?.totalDurationMs} ms
               </div>
             </div>
-            <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
-              <div className="text-slate-400 text-[10px]">Client Roundtrip</div>
-              <div className="font-semibold text-sky-400 mt-0.5">
-                {invoiceResult.clientRoundtripMs} ms
-              </div>
-            </div>
-            <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
-              <div className="text-slate-400 text-[10px]">Invoice Number</div>
-              <div className="font-semibold text-white mt-0.5 font-mono truncate">
-                {invoiceResult.invoiceNumber}
-              </div>
-            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <span className="text-xs text-slate-300 font-mono">
+              Generated: {invoiceResult.invoiceNumber} ({invoiceResult.pdfDocument?.sizeBytes} bytes)
+            </span>
+            <button
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Generated PDF</span>
+            </button>
           </div>
         </div>
       )}

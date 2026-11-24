@@ -78,6 +78,17 @@ export class OrderController {
       next(error);
     }
   }
+
+  async generateInvoice(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.tenantId) throw new AppError('Tenant context required', 400);
+
+      const result = await orderService.generateOrderInvoice(req.tenantId, req.params.id as string);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const orderController = new OrderController();
