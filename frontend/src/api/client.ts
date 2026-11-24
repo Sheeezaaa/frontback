@@ -1,4 +1,5 @@
-const API_BASE = '/api/v1';
+const RAW_BASE = ((import.meta as any).env?.VITE_API_BASE_URL as string) || '';
+const API_BASE = RAW_BASE ? `${RAW_BASE.replace(/\/$/, '')}/api/v1` : '/api/v1';
 
 export interface ApiResponse<T> {
   success: boolean;
