@@ -50,8 +50,19 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    if (req.method === 'GET') {
+      return res.status(200).json({
+        status: 'healthy',
+        service: 'Vercel Serverless PDF Invoice Generator',
+        executionType,
+        isWarm,
+        invocationCount,
+        initOverheadMs: Number(initOverheadMs.toFixed(2)),
+      });
+    }
+
     if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method Not Allowed. Use POST.' });
+      return res.status(405).json({ error: 'Method Not Allowed. Use POST or GET.' });
     }
 
     const { tenantId, orderId, orderNumber, totalAmount, items, customer } = (req.body || {}) as InvoiceRequest;
