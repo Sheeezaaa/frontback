@@ -9,7 +9,7 @@ export const AppLayout: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#f0f7ff]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin"></div>
           <span className="text-sm font-medium text-slate-500">Loading SaaS Tenant Session...</span>
@@ -23,7 +23,7 @@ export const AppLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen w-screen overflow-hidden bg-gradient-to-br from-[#f0f7ff] via-[#e8f3fe] to-[#f4f9ff]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar />

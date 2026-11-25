@@ -41,23 +41,27 @@ The platform is designed around strict security, horizontal scalability, zero da
 
 ## 3. Application Screenshots & Visual Tour
 
-### 1. Operations Command Center & Tenant Dashboard
+### 1. Multi-Tenant Authentication & One-Click Demo Access
+Enterprise login with JWT claims, automatic tenant context resolution, and instant one-click demo profiles:
+![Multi-Tenant Login](docs/screenshots/login.svg)
+
+### 2. Operations Command Center & Tenant Dashboard
 Real-time tenant-scoped metrics, revenue aggregations, recent order history, and live Kafka consumer feed:
 ![Operations Dashboard](docs/screenshots/dashboard.svg)
 
-### 2. Database Performance Benchmark (N+1 Query vs Eager Loading)
+### 3. Database Performance Benchmark (N+1 Query vs Eager Loading)
 Actual query count measurement (-96.8% roundtrips), 4.31x execution speedup, and PostgreSQL `EXPLAIN ANALYZE` index scan inspection:
 ![Database Performance Benchmark](docs/screenshots/db-benchmark.svg)
 
-### 3. Apache Kafka Event Monitoring & Idempotency Ledger
+### 4. Apache Kafka Event Monitoring & Idempotency Ledger
 Real-time partition offsets, consumer group lag tracking, Dead Letter Queue (DLQ), and manual commit ledger:
 ![Kafka Event Monitoring](docs/screenshots/kafka-monitoring.svg)
 
-### 4. Sales Order Creation & Transactional Outbox Flow
+### 5. Sales Order Creation & Transactional Outbox Flow
 Atomic inventory reservation, HTTP 202 Accepted response, and reliable outbox publishing:
 ![Order Management](docs/screenshots/order-management.svg)
 
-### 5. Serverless Binary PDF Invoice & Cold/Warm Start Profiler
+### 6. Serverless Binary PDF Invoice & Cold/Warm Start Profiler
 Real binary PDF generation via PDFKit, downloadable document buffer, and empirical container initialization measurements:
 ![Serverless Invoice Profiler](docs/screenshots/serverless-invoice.svg)
 

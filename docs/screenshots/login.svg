@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgLightBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="50%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0284c7" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Light Blue Canvas Background -->
+  <rect width="1200" height="680" fill="url(#bgLightBlue)"/>
+
+  <!-- Background decorative light blue circles -->
+  <circle cx="150" cy="120" r="180" fill="#bae6fd" opacity="0.3"/>
+  <circle cx="1050" cy="560" r="220" fill="#bae6fd" opacity="0.3"/>
+
+  <!-- Centered Login Box -->
+  <rect x="360" y="50" width="480" height="580" rx="16" fill="#ffffff" stroke="#bae6fd" stroke-width="1.5" filter="url(#shadow)"/>
+
+  <!-- Logo -->
+  <rect x="575" y="75" width="50" height="50" rx="12" fill="#0284c7"/>
+  <text x="590" y="108" font-family="system-ui, sans-serif" font-weight="bold" font-size="28" fill="#ffffff">O</text>
+
+  <text x="600" y="155" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="900" font-size="24" fill="#0f172a">OmniOrder SaaS</text>
+  <text x="600" y="175" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="#0284c7" font-weight="600">Multi-Tenant B2B Order Management with Apache Kafka</text>
+
+  <!-- Input 1: Tenant Organization / Slug -->
+  <text x="400" y="215" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#334155">TENANT IDENTIFIER (OPTIONAL FOR AUTO-RESOLVE)</text>
+  <rect x="400" y="225" width="400" height="38" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="415" y="249" font-family="system-ui, sans-serif" font-size="12" fill="#0f172a">abc-electronics (ABC Electronics)</text>
+
+  <!-- Input 2: Email -->
+  <text x="400" y="285" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#334155">EMAIL ADDRESS</text>
+  <rect x="400" y="295" width="400" height="38" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="415" y="319" font-family="system-ui, sans-serif" font-size="12" fill="#0f172a">alex@abc.com</text>
+
+  <!-- Input 3: Password -->
+  <text x="400" y="355" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#334155">PASSWORD</text>
+  <rect x="400" y="365" width="400" height="38" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="415" y="389" font-family="system-ui, sans-serif" font-size="12" fill="#0f172a">•••••••••••••• (bcrypt hashed)</text>
+
+  <!-- Sign In Button -->
+  <rect x="400" y="420" width="400" height="42" rx="8" fill="#0284c7"/>
+  <text x="600" y="446" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="bold" fill="#ffffff">Sign In to Isolated Tenant Dashboard →</text>
+
+  <!-- Divider -->
+  <line x1="400" y1="480" x2="800" y2="480" stroke="#e2e8f0"/>
+  <rect x="520" y="470" width="160" height="20" fill="#ffffff"/>
+  <text x="600" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#64748b">QUICK DEMO ACCOUNTS</text>
+
+  <!-- Quick Demo Buttons -->
+  <!-- Tenant A: ABC Electronics -->
+  <rect x="400" y="505" width="190" height="44" rx="8" fill="#f0f9ff" stroke="#bae6fd"/>
+  <text x="415" y="525" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#0369a1">ABC Electronics</text>
+  <text x="415" y="540" font-family="system-ui, sans-serif" font-size="9" fill="#0284c7">Admin (alex@abc.com)</text>
+
+  <!-- Tenant B: XYZ Fashion -->
+  <rect x="610" y="505" width="190" height="44" rx="8" fill="#fdf2f8" stroke="#fbcfe8"/>
+  <text x="625" y="525" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#be185d">XYZ Fashion</text>
+  <text x="625" y="540" font-family="system-ui, sans-serif" font-size="9" fill="#db2777">Admin (sarah@xyz.com)</text>
+
+  <!-- Super Admin Demo -->
+  <rect x="400" y="560" width="400" height="34" rx="8" fill="#f5f3ff" stroke="#ddd6fe"/>
+  <text x="600" y="582" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#6d28d9">⚡ Super Admin Demo (Full Multi-Tenant Oversight)</text>
+</svg>
